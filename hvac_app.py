@@ -1,75 +1,87 @@
 
-import os
+import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
-import streamlit as st
+import os
 
-# Function to load data
-def load_data(file_path):
-    return pd.read_excel(file_path, engine='openpyxl')
+# Load the Excel file
+file_path = 'Form_source_20250605.xlsx'
+df = pd.read_excel(file_path, header=5)
 
-# Function to display images
-def display_images(image_paths):
-    for image_path in image_paths:
-        st.image(image_path, use_column_width=True)
+# Sidebar for selecting the quarter
+quarter = st.sidebar.selectbox('Select Quarter', df['Quarter'].unique())
 
-# Function to plot airflow
-def plot_airflow(min_airflow, max_airflow):
-    plt.figure(figsize=(6, 4))
-    plt.plot(['Min Airflow', 'Max Airflow'], [min_airflow, max_airflow], marker='o')
-    plt.title('Airflow Performance')
-    plt.xlabel('Airflow')
-    plt.ylabel('Value')
-    st.pyplot(plt)
+# Filter data based on selected quarter
+filtered_df = df[df['Quarter'] == quarter]
 
-# Function to plot rectangle
-def plot_rectangle(coords):
-    plt.figure(figsize=(6, 4))
-    plt.plot([coords[0], coords[1]], [coords[2], coords[3]], marker='o')
-    plt.title('Internal Section')
-    plt.xlabel('X')
-    plt.ylabel('Y')
-    st.pyplot(plt)
+# Display the parameters and their meanings
+st.write("### Parameters and their meanings")
+st.write("""
+- **Column 4**: Image 1
+- **Column 6**: Image 2
+- **Column 10**: Unit size quantity (RRG)
+- **Column 11**: Unit size quantity (HEX)
+- **Column 35**: Min air performance
+- **Column 37**: Max air performance
+- **Column 44-63**: Internal cross-section coordinates
+- **Column 67-76**: Duct connection coordinates
+- **Column 77**: Diameter (if numeric value present)
+""")
 
-# Function to plot duct connection
-def plot_duct(coords, diameter):
-    plt.figure(figsize=(6, 4))
-    if diameter > 0:
-        circle = plt.Circle((coords[0], coords[1]), diameter, color='blue', fill=False)
+# Display the data
+st.write("### Data for selected quarter")
+st.dataframe(filtered_df)
+
+# Display images from columns 4 and 6
+st.write("### Images")
+for index, row in filtered_df.iterrows():
+    image1 = row[3]  # Column 4
+    image2 = row[5]  # Column 6
+    if os.path.exists(f'images/{image1}'):
+        st.image(f'images/{image1}', caption=image1)
+    if os.path.exists(f'images/{image2}'):
+        st.image(f'images/{image2}', caption=image2)
+
+# Display Unit size quantity based on Recovery type
+st.write("### Unit size quantity")
+for index, row in filtered_df.iterrows():
+    recovery_type = row[8]  # Column 'Recovery type'
+    if recovery_type == 'RRG':
+        st.write(f"Unit size quantity (RRG): {row[9]}")  # Column 10
+    elif recovery_type == 'HEX':
+        st.write(f"Unit size quantity (HEX): {row[10]}")  # Column 11
+
+# Generate air performance plot
+st.write("### Air performance plot")
+for index, row in filtered_df.iterrows():
+    min_air_performance = row[34]  # Column 35
+    max_air_performance = row[36]  # Column 37
+    plt.plot([min_air_performance, max_air_performance], [1, 1], marker='o')
+plt.xlabel('Air Performance')
+plt.ylabel('Value')
+st.pyplot(plt)
+
+# Generate internal cross-section plot
+st.write("### Internal cross-section plot")
+for index, row in filtered_df.iterrows():
+    x_coords = row[43:63:2]  # Columns 44, 46, 48, ..., 62
+    y_coords = row[44:64:2]  # Columns 45, 47, 49, ..., 63
+    plt.plot(x_coords, y_coords, marker='o')
+plt.xlabel('X Coordinates')
+plt.ylabel('Y Coordinates')
+st.pyplot(plt)
+
+# Generate duct connection plot
+st.write("### Duct connection plot")
+for index, row in filtered_df.iterrows():
+    if pd.notna(row[76]):  # Column 77
+        diameter = row[76]
+        circle = plt.Circle((0, 0), diameter / 2, color='blue', fill=False)
         plt.gca().add_patch(circle)
     else:
-        plt.plot([coords[0], coords[1]], [coords[2], coords[3]], marker='o')
-    plt.title('Duct Connection')
-    plt.xlabel('X')
-    plt.ylabel('Y')
-    st.pyplot(plt)
-
-# Main function
-def main():
-    st.title('HVAC Data Viewer')
-
-    folder_path = st.text_input('Enter the folder path:')
-    if folder_path:
-        file_path = os.path.join(folder_path, 'Form_source_20250605.xlsx')
-        if os.path.exists(file_path):
-            data = load_data(file_path)
-            quarter = st.selectbox('Select Quarter', ['Q1', 'Q2', 'Q3', 'Q4'])
-            st.write(data[quarter])
-
-            recovery_type = data['Recovery type'][0]
-            if recovery_type == 'RRG':
-                st.write('Unit size quantity:', data['Unit size quantity RRG'][0])
-            else:
-                st.write('Unit size quantity:', data['Unit size quantity HEX'][0])
-
-            plot_airflow(data['Airflow min'][0], data['Airflow max'][0])
-            plot_rectangle([data['Rect coord 1'][0], data['Rect coord 2'][0], data['Rect coord 3'][0], data['Rect coord 4'][0]])
-            plot_duct([data['Duct coord 1'][0], data['Duct coord 2'][0], data['Duct coord 3'][0], data['Duct coord 4'][0]], data['Duct diameter'][0])
-
-            image_paths = [os.path.join(folder_path, 'images', f'example_image_{i}.jpg') for i in range(1, 9)]
-            display_images(image_paths)
-        else:
-            st.error('File not found. Please check the folder path.')
-
-if __name__ == '__main__':
-    main()
+        x_coords = row[66:76:2]  # Columns 67, 69, 71, ..., 75
+        y_coords = row[67:77:2]  # Columns 68, 70, 72, ..., 76
+        plt.plot(x_coords, y_coords, marker='o')
+plt.xlabel('X Coordinates')
+plt.ylabel('Y Coordinates')
+st.pyplot(plt)
